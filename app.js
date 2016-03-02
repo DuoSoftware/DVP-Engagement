@@ -128,7 +128,7 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagemen
     return next();
 });
 
-RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId/item/:itemId', authorization({
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId/:itemId', authorization({
     resource: "engagement",
     action: "read"
 }), function (req, res, next) {
