@@ -28,8 +28,6 @@ RestServer.use(restify.fullResponse());
 //Server listen
 RestServer.listen(port, function () {
     console.log('%s listening at %s', RestServer.name, RestServer.url);
-
-
 });
 
 //Enable request body parsing(access)
@@ -175,6 +173,32 @@ RestServer.post('/DVP/API/' + version + '/EngagementService/Engagement/item', au
         logger.error('[addItemToEngagement] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
         var jsonString = messageFormatter.FormatMessage(ex, "EXCEPTION", false, undefined);
         logger.debug('[addItemToEngagement] - Request response : %s ', jsonString);
+        res.end(jsonString);
+    }
+    return next();
+});
+
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:Date/:Size/:Page', authorization({
+    resource: "engagement",
+    action: "read"
+}), function (req, res, next) {
+    try {
+
+        logger.info('[getAllEngagementsByDate] - [HTTP]  - Request received -  Data - %s ', JSON.stringify(req.body));
+
+        if (!req.user ||!req.user.tenant || !req.user.company)
+            throw new Error("invalid tenant or company.");
+        var tenantId = req.user.tenant;
+        var companyId = req.user.company;
+
+        engagementHandler.getAllEngagementsByDate(tenantId,companyId,req,res);
+
+    }
+    catch (ex) {
+
+        logger.error('[getAllEngagementsByDate] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
+        var jsonString = messageFormatter.FormatMessage(ex, "EXCEPTION", false, undefined);
+        logger.debug('[getAllEngagementsByDate] - Request response : %s ', jsonString);
         res.end(jsonString);
     }
     return next();

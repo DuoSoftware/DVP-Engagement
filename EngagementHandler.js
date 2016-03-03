@@ -10,10 +10,11 @@ var moment = require("moment");
 var async = require("async");
 
 var MongoClient = require('mongodb').MongoClient
-    , assert = require('assert');
+    , assert = require('assert'),
+ObjectID = require('mongodb').ObjectID;
 
 // Connection URL
-var url = 'mongodb://localhost:27017/myproject';
+var url = 'mongodb://localhost:27017/dvp-engagements';
 
 var database;
 MongoClient.connect(url, function(err, db) {
@@ -35,13 +36,14 @@ var resetConnection = function(){
    }
 };
 
-var updateLinks = function (collection, sessionId, itemId, links, res) {
+var updateLinks = function (sessionId, itemId, links, res) {
 
     var jsonString;
-    collection.update({_id: db.ObjectId(itemId)}, {$set: {links: links}}, function (err, eng) {
+    var collection = database.collection(sessionId.toString());
+    collection.updateOne({_id: new ObjectID(itemId)}, {$set: {links: links}}, function (err, eng) {
         if (!err) {
             logger.info('updateLinks - [%s]', sessionId);
-            jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", eng.ok == 1, eng);
+            jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", eng.result.ok == 1, eng);
             res.end(jsonString);
         }
         else {
@@ -161,7 +163,7 @@ exports.saveEngagement = function (tenant, company, req, res) {
             var jsonString;
             // Insert some documents
             collection.insertOne({
-                    sessionid: item.sessionId,
+                    sessionid: item.sessionId.toString(),
                     engagementtype: item.req.body.EngagementType,
                     tenant: item.tenant,
                     company: item.company,
@@ -195,11 +197,11 @@ exports.saveEngagement = function (tenant, company, req, res) {
             var collection = database.collection(schm.toString());
             var now = moment(new Date());
 
-            collection.findOne({sessionid: item.sessionId},function(err, result){
+            collection.findOne({sessionid: item.sessionId.toString()},function(err, result){
                     if (!err) {
                         if (!result) {
                             collection.insertOne({
-                                sessionid: item.sessionId,
+                                sessionid: item.sessionId.toString(),
                                 create: now.format("DD-MM-YYYY-HH:mm:ss:SSS")
                             }, function (err, result) {
                                 if (err) {
@@ -223,12 +225,12 @@ exports.saveEngagement = function (tenant, company, req, res) {
 
 exports.getEngagementBySessionId = function (tenant, company, req, res) {
 
-    var sessionId = req.params.sessionId;
+    var sessionId = req.params.sessionId.toString();
     var collection = database.collection(sessionId.toString());
     res.setHeader('Content-Type', 'application/json');
     var jsonString;
 
-    collection.find({sessionid: sessionId}, function (err, eng) {
+    collection.find({sessionid: sessionId}).toArray(function (err, eng) {
         if (!err) {
             logger.info('getEngagementBySessionId - [%s]', sessionId);
             jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, eng);
@@ -254,7 +256,7 @@ exports.getAllAttachments = function (tenant, company, req, res) {
     var jsonString;
 
 
-    collection.find({}, function (err, eng) {
+    collection.find({}).toArray(function (err, eng) {
         if (!err) {
             logger.info('getAllattachments - [%s]', itemId);
             jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, eng);
@@ -283,7 +285,7 @@ exports.getAttachment = function (tenant, company, req, res) {
 
 
     try {
-        collection.findOne({_id: db.ObjectId(attachmentId)}, function (err, eng) {
+        collection.findOne({_id: new ObjectID(attachmentId)}).toArray(function (err, eng) {
             if (!err) {
                 logger.info('getAttachment - [%s]', itemId);
                 jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, eng);
@@ -308,19 +310,20 @@ exports.getAttachment = function (tenant, company, req, res) {
 
 exports.addItemToEngagement = function (tenant, company, req, res) {
 
-    var sessionId = req.body.sessionId;
+    var sessionId = req.body.sessionId.toString();
     var itemId = req.body.itemId;
 
-    var collection = database.collection(sessionId.toString(),itemId.toString());
+    var collection = database.collection(sessionId.toString());
 
     res.setHeader('Content-Type', 'application/json');
     var jsonString;
 
     var now = moment(new Date());
     var date = now.format("DD-MM-YYYY-HH:mm:ss:SSS");
-    collection.findOne({_id: db.ObjectId(itemId)}, function (err, eng) {
+    collection.findOne({_id: new ObjectID(itemId)}, function (err, eng) {
         if (!err) {
             if (eng) {
+                collection = database.collection(itemId.toString());
                 collection.insertOne({
                     sessionid: sessionId,
                     itemtype: req.body.ItemType,
@@ -331,8 +334,8 @@ exports.addItemToEngagement = function (tenant, company, req, res) {
                     create: date
                 }, function (err, itm) {
                     if (!err) {
-                        eng.links.push(itm._id.toString());
-                        updateLinks(collection, sessionId, itemId, eng.links, res);
+                        eng.links.push(itm.insertedId.toString());
+                        updateLinks(sessionId, itemId, eng.links, res);
                     }
                     else {
                         if(err.name=="MongoError"){
@@ -354,6 +357,36 @@ exports.addItemToEngagement = function (tenant, company, req, res) {
         }
         else {
             logger.error('getEngagement - [%s]', sessionId, err);
+            jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+            res.end(jsonString);
+        }
+    });
+
+};
+
+exports.getAllEngagementsByDate = function (tenant, company, req, res) {
+
+    var selectedDate = req.params.Date;
+    var page = parseInt(req.params.Page),
+        size = parseInt(req.params.Size),
+        skip = page > 0 ? ((page - 1) * size) : 0;
+
+    var collection = database.collection(selectedDate.toString());
+    res.setHeader('Content-Type', 'application/json');
+    var jsonString;
+
+
+    collection.find({}).toArray(function (err, eng) {
+        if (!err) {
+            logger.info('getAllEngagementsByDate - [%s]', selectedDate);
+            jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, eng);
+            res.end(jsonString);
+        }
+        else {
+            if(err.name=="MongoError"){
+                resetConnection();
+            }
+            logger.error('getAllEngagementsByDate - [%s]', selectedDate, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
         }
