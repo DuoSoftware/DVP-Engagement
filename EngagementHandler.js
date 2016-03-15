@@ -39,12 +39,12 @@ var resetConnection = function () {
     }
 };
 
-var updateAncestors = function (sessionId, ancestors, insertedId, res) {
+var updateSiblings = function (sessionId, siblings, insertedId, res) {
     var jsonString;
 
-    database.updateOne({_id: sessionId}, {$set: {ancestors: ancestors}}, function (err, result) {
+    database.updateOne({_id: sessionId}, {$set: {siblings: siblings}}, function (err, result) {
         if (!err) {
-            logger.info('updateAncestors - [%s]', sessionId);
+            logger.info('updateSiblings - [%s]', sessionId);
             jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", result.result.ok == 1, insertedId);
             res.end(jsonString);
         }
@@ -52,7 +52,7 @@ var updateAncestors = function (sessionId, ancestors, insertedId, res) {
             if (err.name == "MongoError") {
                 resetConnection();
             }
-            logger.error('updateAncestors - [%s]', sessionId, err);
+            logger.error('updateSiblings - [%s]', sessionId, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
         }
@@ -101,7 +101,7 @@ exports.saveEngagement = function (tenant, company, req, res) {
                         company: item.company,
                         data: item.req.body.Data,
                         links: [],
-                        ancestors: [],
+                        siblings: [],
                         parent: null,
                         create: date
                     };
@@ -113,7 +113,7 @@ exports.saveEngagement = function (tenant, company, req, res) {
                             company: item.company,
                             data: item.req.body.Data,
                             links: [],
-                            ancestors: [],
+                            siblings: [],
                             parent: null,
                             create: date
                         };
@@ -157,7 +157,19 @@ exports.saveEngagement = function (tenant, company, req, res) {
             var collection = baseDb.collection(schm.toString());
             var now = moment(new Date());
 
-            collection.findOne({sessionid: item.sessionId.toString()}, function (err, result) {
+
+            collection.insertOne({
+                _id:item.sessionId.toString(),
+                sessionid: item.sessionId.toString(),
+                create: now.format("DD-MM-YYYY-HH:mm:ss:SSS")
+            }, function (err, result) {
+                if (err) {
+                    logger.error('saveSessionId - [%s]', item.sessionId, err);
+                }
+            });
+
+
+            /*collection.findOne({sessionid: item.sessionId.toString()}, function (err, result) {
                     if (!err) {
                         if (!result) {
                             collection.insertOne({
@@ -177,7 +189,7 @@ exports.saveEngagement = function (tenant, company, req, res) {
                     }
 
                 }
-            );
+            );*/
         });
     });
     async.parallel(task, null);
@@ -221,7 +233,11 @@ exports.getEngagementsBySessionId = function (tenant, company, req, res) {
                     return ObjectID(id);
                 });
 
-                database.find({_id: {$in: ids}}).toArray(function (err, anc) {
+                var page = parseInt(req.params.Page),
+                    size = parseInt(req.params.Size),
+                    skip = page > 0 ? ((page - 1) * size) : 0;
+
+                database.find({_id: {$in: ids}}).skip(skip).limit(size).toArray(function (err, anc) {
                     if (!err) {
                         logger.info('getEngagementBySessionId - [%s]', sessionId);
                         jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, anc);
@@ -237,8 +253,6 @@ exports.getEngagementsBySessionId = function (tenant, company, req, res) {
                 jsonString = messageFormatter.FormatMessage(new Error("No data"), "EXCEPTION", false, undefined);
                 res.end(jsonString);
             }
-
-
         }
         else {
             if (err.name == "MongoError") {
@@ -264,7 +278,7 @@ exports.getAllAttachments = function (tenant, company, req, res) {
     database.findOne({_id: engagementId}, function (err, eng) {
         if (!err) {
             if (eng) {
-                var ids = eng.ancestors;
+                var ids = eng.siblings;
                 ids = ids.map(function (id) {
                     return ObjectID(id);
                 });
@@ -361,12 +375,12 @@ exports.addItemToEngagement = function (tenant, company, req, res) {
                 data: req.body.Data,
                 create: date,
                 links: [],
-                ancestors: [],
+                siblings: [],
                 parent: itemId
             }, function (err, itm) {
                 if (!err) {
-                    eng.ancestors.push(itm.insertedId.toString());
-                    updateAncestors(sessionId, eng.ancestors, itm.insertedId, res);
+                    eng.siblings.push(itm.insertedId.toString());
+                    updateSiblings(sessionId, eng.siblings, itm.insertedId, res);
                 }
                 else {
                     if (err.name == "MongoError") {
@@ -398,8 +412,8 @@ exports.getAllEngagementsByDate = function (tenant, company, req, res) {
     res.setHeader('Content-Type', 'application/json');
     var jsonString;
 
-
-    collection.find({}).toArray(function (err, eng) {
+//db.companies.find().skip(3).limit(3)
+    collection.find({}).skip(skip).limit(size).toArray(function (err, eng) {
         if (!err) {
             logger.info('getAllEngagementsByDate - [%s]', selectedDate);
             jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, eng);
