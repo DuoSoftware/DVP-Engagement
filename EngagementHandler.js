@@ -14,7 +14,7 @@ var MongoClient = require('mongodb').MongoClient
     ObjectID = require('mongodb').ObjectID;
 
 // Connection URL
-var url = 'mongodb://localhost:27017/dvp-engagements';
+var url = 'mongodb://'+config.Mongo.ip+':'+config.Mongo.port+'/'+config.Mongo.dbname; //'mongodb://localhost:27017/dvp-engagements';
 
 var database;
 var baseDb;
@@ -24,6 +24,18 @@ MongoClient.connect(url, function (err, db) {
     database = db.collection("Engagements");
     baseDb=db;
 });
+
+/*
+baseDb.authenticate(config.Mongo.user, config.Mongo.password, function(err, success){
+    if(success){
+        callback(null, db);
+    }
+    else {
+        callback(err ? err : new Error('Could not authenticate user ' + user), null);
+    }
+});
+
+*/
 
 var resetConnection = function () {
     try {

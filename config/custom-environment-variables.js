@@ -15,6 +15,21 @@ module.exports = {
         "hostpath":"HOST_PATH",
         "logfilepath": "LOG4JS_CONFIG"
     }
+,"Security":
+    {
+        "ip": "SYS_REDIS_HOST",
+        "port": "SYS_REDIS_PORT",
+        "user": "SYS_REDIS_USER",
+        "password": "SYS_REDIS_PASSWORD"
 
+    },
+    "Mongo":
+    {
+        "ip":"MONGO_IP",
+        "port":"MONGO_PORT",
+        "dbname":"MONGO_DBNAME",
+        "user":"MONGO_USER",
+        "password":"MONGO_PASSWORD"
+    }
 };
 

@@ -21,5 +21,13 @@ module.exports = {
         "version": "6.0",
         "hostpath": "./config",
         "logfilepath": ""
+    },
+    "Mongo":
+    {
+        "ip":"localhost",
+        "port":"27017",
+        "dbname":"dvp-engagements",
+        "user":"MONGO_USER",
+        "password":"MONGO_PASSWORD"
     }
 };
