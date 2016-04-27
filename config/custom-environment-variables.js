@@ -25,11 +25,11 @@ module.exports = {
     },
     "Mongo":
     {
-        "ip":"MONGO_IP",
-        "port":"MONGO_PORT",
-        "dbname":"MONGO_DBNAME",
-        "user":"MONGO_USER",
-        "password":"MONGO_PASSWORD"
+        "ip":"SYS_MONGO_HOST",
+        "port":"SYS_MONGO_PORT",
+        "dbname":"SYS_MONGO_DB",
+        "user":"SYS_MONGO_USER",
+        "password":"SYS_MONGO_PASSWORD"
     }
 };
 
