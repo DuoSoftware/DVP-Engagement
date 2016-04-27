@@ -13,8 +13,14 @@ var MongoClient = require('mongodb').MongoClient
     , assert = require('assert'),
     ObjectID = require('mongodb').ObjectID;
 
+/*
+ // Connection URL
+ var url = 'mongodb://dave:password@localhost:27017?authMechanism=DEFAULT&authSource=db';
+*/
+
+
 // Connection URL
-var url = 'mongodb://'+config.Mongo.ip+':'+config.Mongo.port+'/'+config.Mongo.dbname; //'mongodb://localhost:27017/dvp-engagements';
+var url = 'mongodb://'+config.Mongo.user+':'+config.Mongo.password+'@'+config.Mongo.ip+':'+config.Mongo.port+'/'+config.Mongo.dbname; //'mongodb://localhost:27017/dvp-engagements';
 
 var database;
 var baseDb;

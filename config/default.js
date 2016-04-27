@@ -7,13 +7,19 @@ module.exports = {
         "Host": "localhost",
         "Database": "dvp-engagements"
     },
-    "Redis": {
+    "Redis":
+    {
         "ip": "45.55.142.207",
-        "port": 6379
+        "port": 6389,
+        "password":"DuoS123"
+
     },
-    "Security": {
-        "ip": "45.55.142.207",
-        "port": 6379
+    "Security":
+    {
+        "ip" : "45.55.142.207",
+        "port": 6389,
+        "user": "duo",
+        "password": "DuoS123"
     },
     "Host": {
         "domain": "0.0.0.0",
@@ -24,10 +30,10 @@ module.exports = {
     },
     "Mongo":
     {
-        "ip":"localhost",
+        "ip":"45.55.142.207",
         "port":"27017",
         "dbname":"dvp-engagements",
-        "user":"MONGO_USER",
-        "password":"MONGO_PASSWORD"
+        "user":"duo",
+        "password":"DuoS123"
     }
 };
