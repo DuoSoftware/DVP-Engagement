@@ -100,7 +100,7 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:sessionId
     return next();
 });
 
-RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:sessionId/all', authorization({
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:sessionId/:Size/:Page', authorization({
     resource: "engagement",
     action: "write"
 }), function (req, res, next) {
@@ -152,7 +152,7 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagemen
     return next();
 });
 
-RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/item/:itemId', authorization({
+RestServer.get('/DVP/API/' + version + '/EngagementService/EngagementItem/:itemId', authorization({
     resource: "engagement",
     action: "read"
 }), function (req, res, next) {
@@ -178,7 +178,7 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/item/:item
     return next();
 });
 
-RestServer.post('/DVP/API/' + version + '/EngagementService/Engagement/item', authorization({
+RestServer.post('/DVP/API/' + version + '/EngagementService/EngagementItem/:sessionId/:parentId', authorization({
     resource: "engagement",
     action: "write"
 }), function (req, res, next) {
@@ -204,7 +204,7 @@ RestServer.post('/DVP/API/' + version + '/EngagementService/Engagement/item', au
     return next();
 });
 
-RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:Date/:Size/:Page', authorization({
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagements/:Date/:Size/:Page', authorization({
     resource: "engagement",
     action: "read"
 }), function (req, res, next) {
@@ -229,5 +229,32 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:Date/:Siz
     }
     return next();
 });
+
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagements/:Date/:Size/:Page/sessionIds', authorization({
+    resource: "engagement",
+    action: "read"
+}), function (req, res, next) {
+    try {
+
+        logger.info('[getAllEngagementsByDate] - [HTTP]  - Request received -  Data - %s ', JSON.stringify(req.body));
+
+        if (!req.user ||!req.user.tenant || !req.user.company)
+            throw new Error("invalid tenant or company.");
+        var tenantId = req.user.tenant;
+        var companyId = req.user.company;
+
+        engagementHandler.getAllEngagementsSessionIdsByDate(tenantId,companyId,req,res);
+
+    }
+    catch (ex) {
+
+        logger.error('[getAllEngagementsByDate] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
+        var jsonString = messageFormatter.FormatMessage(ex, "EXCEPTION", false, undefined);
+        logger.debug('[getAllEngagementsByDate] - Request response : %s ', jsonString);
+        res.end(jsonString);
+    }
+    return next();
+});
+
 
 //------------------------- End-CampaignHandler ------------------------- \\

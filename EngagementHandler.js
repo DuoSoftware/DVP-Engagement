@@ -57,10 +57,16 @@ var resetConnection = function () {
     }
 };
 
-var updateSiblings = function (sessionId, siblings, insertedId, res) {
+var updateSiblings = function (sessionId,insertedId, res) {
     var jsonString;
 
-    database.updateOne({_id: sessionId}, {$set: {siblings: siblings}}, function (err, result) {
+    database.updateOne({_id: sessionId}, {
+        $push: {
+            siblings: {
+                $each: [ insertedId],
+            }
+        }
+    }, function (err, result) {
         if (!err) {
             logger.info('updateSiblings - [%s]', sessionId);
             jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", result.result.ok == 1, insertedId);
@@ -76,6 +82,8 @@ var updateSiblings = function (sessionId, siblings, insertedId, res) {
         }
     })
 };
+
+
 
 var updateLinks = function (sessionId, links, eng, res) {
 
@@ -111,30 +119,20 @@ exports.saveEngagement = function (tenant, company, req, res) {
             var jsonString;
             database.findOne({_id: item.sessionId}, function (err, eng) {
                 if (!err) {
+
                     var newEng = {
-                        _id: item.sessionId,
-                        sessionid: item.sessionId.toString(),
-                        engagementtype: item.req.body.EngagementType,
+                        sessionId: item.sessionId.toString(),
+                        engagementType: item.req.body.engagementType,
                         tenant: item.tenant,
                         company: item.company,
-                        data: item.req.body.Data,
+                        Data: item.req.body.Data,
                         links: [],
                         siblings: [],
                         parent: null,
                         create: date
                     };
-                    if (eng) {
-                        newEng = {
-                            sessionid: item.sessionId.toString(),
-                            engagementtype: item.req.body.EngagementType,
-                            tenant: item.tenant,
-                            company: item.company,
-                            data: item.req.body.Data,
-                            links: [],
-                            siblings: [],
-                            parent: null,
-                            create: date
-                        };
+                    if (!eng) {
+                        newEng._id= item.sessionId;
                     }
 
                     database.insertOne(newEng, function (err, result) {
@@ -178,7 +176,7 @@ exports.saveEngagement = function (tenant, company, req, res) {
 
             collection.insertOne({
                 _id:item.sessionId.toString(),
-                sessionid: item.sessionId.toString(),
+                sessionId: item.sessionId.toString(),
                 create: now.format("DD-MM-YYYY-HH:mm:ss:SSS")
             }, function (err, result) {
                 if (err) {
@@ -187,11 +185,11 @@ exports.saveEngagement = function (tenant, company, req, res) {
             });
 
 
-            /*collection.findOne({sessionid: item.sessionId.toString()}, function (err, result) {
+            /*collection.findOne({sessionId: item.sessionId.toString()}, function (err, result) {
                     if (!err) {
                         if (!result) {
                             collection.insertOne({
-                                sessionid: item.sessionId.toString(),
+                                sessionId: item.sessionId.toString(),
                                 create: now.format("DD-MM-YYYY-HH:mm:ss:SSS")
                             }, function (err, result) {
                                 if (err) {
@@ -243,6 +241,10 @@ exports.getEngagementsBySessionId = function (tenant, company, req, res) {
     res.setHeader('Content-Type', 'application/json');
     var jsonString;
 
+    var page = parseInt(req.params.Page),
+        size = parseInt(req.params.Size),
+        skip = page > 0 ? ((page - 1) * size) : 0;
+
     database.findOne({_id: sessionId}, function (err, eng) {
         if (!err) {
             if (eng) {
@@ -250,10 +252,6 @@ exports.getEngagementsBySessionId = function (tenant, company, req, res) {
                 ids = ids.map(function (id) {
                     return ObjectID(id);
                 });
-
-                var page = parseInt(req.params.Page),
-                    size = parseInt(req.params.Size),
-                    skip = page > 0 ? ((page - 1) * size) : 0;
 
                 database.find({_id: {$in: ids}}).skip(skip).limit(size).toArray(function (err, anc) {
                     if (!err) {
@@ -271,6 +269,8 @@ exports.getEngagementsBySessionId = function (tenant, company, req, res) {
                 jsonString = messageFormatter.FormatMessage(new Error("No data"), "EXCEPTION", false, undefined);
                 res.end(jsonString);
             }
+
+
         }
         else {
             if (err.name == "MongoError") {
@@ -314,7 +314,7 @@ exports.getAllAttachments = function (tenant, company, req, res) {
                 });
             }
             else {
-                jsonString = messageFormatter.FormatMessage(new Error("No data"), "EXCEPTION", false, undefined);
+                jsonString = messageFormatter.FormatMessage(new Error("No Data"), "EXCEPTION", false, undefined);
                 res.end(jsonString);
             }
 
@@ -365,8 +365,8 @@ exports.getAttachment = function (tenant, company, req, res) {
 
 exports.addItemToEngagement = function (tenant, company, req, res) {
 
-    var sessionId = req.body.sessionId.toString();
-    var itemId = req.body.itemId;
+    var sessionId = req.params.sessionId.toString();
+    var parentId = req.params.parentId;
 
 
     res.setHeader('Content-Type', 'application/json');
@@ -374,6 +374,54 @@ exports.addItemToEngagement = function (tenant, company, req, res) {
 
     var now = moment(new Date());
     var date = now.format("DD-MM-YYYY-HH:mm:ss:SSS");
+
+    database.findOne({_id: sessionId}, function (err, eng) {
+        if (err) {
+            logger.error('getEngagement - [%s]', sessionId, err);
+            jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+            res.end(jsonString);
+            if (err.name == "MongoError") {
+                resetConnection();
+            }
+            return;
+        }
+        function saveItem() {
+            database.insertOne({
+                sessionId: sessionId,
+                itemType: req.body.ItemType,
+                tenant: tenant,
+                company: company,
+                Data: req.body.Data,
+                create: date,
+                links: [],
+                siblings: [],
+                parent: parentId
+            }, function (err, itm) {
+                if (!err) {
+                    updateSiblings(sessionId, itm.insertedId.toString(), res);
+                }
+                else {
+                    if (err.name == "MongoError") {
+                        resetConnection();
+                    }
+                    logger.error('saveEngagement - [%s]', sessionId, err);
+                    jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+                    res.end(jsonString);
+                }
+            })
+        }
+        if (eng) {
+            saveItem();
+        }
+        else {
+
+            jsonString = messageFormatter.FormatMessage(undefined, "Invalid Session ID or Item ID", false, undefined);
+            res.end(jsonString);
+        }
+
+    });
+
+    /*
     database.findOne({_id: sessionId}, function (err, eng) {
         if (err) {
             logger.error('getEngagement - [%s]', sessionId, err);
@@ -386,15 +434,15 @@ exports.addItemToEngagement = function (tenant, company, req, res) {
         }
         if (eng) {
             database.insertOne({
-                sessionid: sessionId,
-                itemtype: req.body.ItemType,
+                sessionId: sessionId,
+                itemType: req.body.ItemType,
                 tenant: tenant,
                 company: company,
-                data: req.body.Data,
+                Data: req.body.Data,
                 create: date,
                 links: [],
                 siblings: [],
-                parent: itemId
+                parent: parentId
             }, function (err, itm) {
                 if (!err) {
                     eng.siblings.push(itm.insertedId.toString());
@@ -417,9 +465,51 @@ exports.addItemToEngagement = function (tenant, company, req, res) {
         }
 
     });
+    */
 };
 
 exports.getAllEngagementsByDate = function (tenant, company, req, res) {
+
+    var selectedDate = req.params.Date;
+    var page = parseInt(req.params.Page),
+        size = parseInt(req.params.Size),
+        skip = page > 0 ? ((page - 1) * size) : 0;
+
+    var collection = baseDb.collection(selectedDate.toString());
+    res.setHeader('Content-Type', 'application/json');
+    var jsonString;
+
+//db.companies.find().skip(3).limit(3)
+    collection.find({}).skip(skip).limit(size).toArray(function (err, ids) {
+        if (!err) {
+            var arrOfVals = ids.map(function(it){ return it._id})
+//database.find({_id: {$in: ids}}).toArray(function (err, anc) {
+            database.find({_id: {$in: arrOfVals}}).toArray(function (err, eng) {
+                if (!err) {
+                    logger.info('getAllEngagementsByDate - [%s]', selectedDate);
+                    jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, eng);
+                    res.end(jsonString);
+                }else{
+                    logger.error('getAllEngagementsByDate - [%s]', selectedDate, err);
+                    jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+                    res.end(jsonString);
+                }
+            });
+
+        }
+        else {
+            if (err.name == "MongoError") {
+                resetConnection();
+            }
+            logger.error('getAllEngagementsByDate - [%s]', selectedDate, err);
+            jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+            res.end(jsonString);
+        }
+    });
+
+};
+
+exports.getAllEngagementsSessionIdsByDate = function (tenant, company, req, res) {
 
     var selectedDate = req.params.Date;
     var page = parseInt(req.params.Page),
