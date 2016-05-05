@@ -46,7 +46,7 @@ RestServer.use(jwt({secret: secret.Secret}));
 
 //-------------------------  Restify Server ------------------------- \\
 
-//-------------------------  CampaignHandler ------------------------- \\
+//-------------------------  EngagementService ------------------------- \\
 
 RestServer.post('/DVP/API/' + version + '/EngagementService/Engagement/', authorization({
     resource: "engagement",
@@ -74,7 +74,85 @@ RestServer.post('/DVP/API/' + version + '/EngagementService/Engagement/', author
     return next();
 });
 
-RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:sessionId', authorization({
+RestServer.post('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId/attachment', authorization({
+    resource: "engagement",
+    action: "write"
+}), function (req, res, next) {
+    try {
+
+        logger.info('[createEngagementAndAddItem] - [HTTP]  - Request received -  Data - %s ', JSON.stringify(req.body));
+
+        if (!req.user ||!req.user.tenant || !req.user.company)
+            throw new Error("invalid tenant or company.");
+        var tenantId = req.user.tenant;
+        var companyId = req.user.company;
+
+        engagementHandler.createEngagementAndAddAttachment(tenantId,companyId,req,res);
+
+    }
+    catch (ex) {
+
+        logger.error('[createEngagementAndAddItem] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
+        var jsonString = messageFormatter.FormatMessage(ex, "EXCEPTION", false, undefined);
+        logger.debug('[createEngagementAndAddItem] - Request response : %s ', jsonString);
+        res.end(jsonString);
+    }
+    return next();
+});
+
+RestServer.post('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId/attachment/:parentId', authorization({
+    resource: "engagement",
+    action: "write"
+}), function (req, res, next) {
+    try {
+
+        logger.info('[addItemToEngagement] - [HTTP]  - Request received -  Data - %s ', JSON.stringify(req.body));
+
+        if (!req.user ||!req.user.tenant || !req.user.company)
+            throw new Error("invalid tenant or company.");
+        var tenantId = req.user.tenant;
+        var companyId = req.user.company;
+
+        engagementHandler.addAttachmentToEngagement(tenantId,companyId,req,res);
+
+    }
+    catch (ex) {
+
+        logger.error('[addItemToEngagement] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
+        var jsonString = messageFormatter.FormatMessage(ex, "EXCEPTION", false, undefined);
+        logger.debug('[addItemToEngagement] - Request response : %s ', jsonString);
+        res.end(jsonString);
+    }
+    return next();
+});
+
+RestServer.put('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId', authorization({
+    resource: "engagement",
+    action: "write"
+}), function (req, res, next) {
+    try {
+
+        logger.info('[updateEngagement] - [HTTP]  - Request received -  Data - %s ', JSON.stringify(req.body));
+
+        if (!req.user ||!req.user.tenant || !req.user.company)
+            throw new Error("invalid tenant or company.");
+        var tenantId = req.user.tenant;
+        var companyId = req.user.company;
+
+        engagementHandler.updateEngagement(tenantId,companyId,req,res);
+
+    }
+    catch (ex) {
+
+        logger.error('[updateEngagement] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
+        var jsonString = messageFormatter.FormatMessage(ex, "EXCEPTION", false, undefined);
+        logger.debug('[updateEngagement] - Request response : %s ', jsonString);
+        res.end(jsonString);
+    }
+    return next();
+});
+
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId', authorization({
     resource: "engagement",
     action: "write"
 }), function (req, res, next) {
@@ -87,7 +165,7 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:sessionId
         var tenantId = req.user.tenant;
         var companyId = req.user.company;
 
-        engagementHandler.getEngagementBySessionId(tenantId,companyId,req,res);
+        engagementHandler.getEngagementById(tenantId,companyId,req,res);
 
     }
     catch (ex) {
@@ -100,33 +178,33 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:sessionId
     return next();
 });
 
-RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:sessionId/:Size/:Page', authorization({
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId/existing', authorization({
     resource: "engagement",
     action: "write"
 }), function (req, res, next) {
     try {
 
-        logger.info('[getEngagementsBySessionId] - [HTTP]  - Request received -  Data - %s ', JSON.stringify(req.body));
+        logger.info('[getEngagement] - [HTTP]  - Request received -  Data - %s ', JSON.stringify(req.body));
 
         if (!req.user ||!req.user.tenant || !req.user.company)
             throw new Error("invalid tenant or company.");
         var tenantId = req.user.tenant;
         var companyId = req.user.company;
 
-        engagementHandler.getEngagementsBySessionId(tenantId,companyId,req,res);
+        engagementHandler.isExistingEngagement(tenantId,companyId,req,res);
 
     }
     catch (ex) {
 
-        logger.error('[getEngagementsBySessionId] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
+        logger.error('[getEngagement] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
         var jsonString = messageFormatter.FormatMessage(ex, "EXCEPTION", false, undefined);
-        logger.debug('[getEngagementsBySessionId] - Request response : %s ', jsonString);
+        logger.debug('[getEngagement] - Request response : %s ', jsonString);
         res.end(jsonString);
     }
     return next();
 });
 
-RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId/items', authorization({
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId/attachments', authorization({
     resource: "engagement",
     action: "read"
 }), function (req, res, next) {
@@ -152,7 +230,33 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagemen
     return next();
 });
 
-RestServer.get('/DVP/API/' + version + '/EngagementService/EngagementItem/:itemId', authorization({
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/:engagementId/history/:Size/:Page', authorization({
+    resource: "engagement",
+    action: "write"
+}), function (req, res, next) {
+    try {
+
+        logger.info('[getEngagementsBySessionId] - [HTTP]  - Request received -  Data - %s ', JSON.stringify(req.body));
+
+        if (!req.user ||!req.user.tenant || !req.user.company)
+            throw new Error("invalid tenant or company.");
+        var tenantId = req.user.tenant;
+        var companyId = req.user.company;
+
+        engagementHandler.getEngagementsById(tenantId,companyId,req,res);
+
+    }
+    catch (ex) {
+
+        logger.error('[getEngagementsById] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
+        var jsonString = messageFormatter.FormatMessage(ex, "EXCEPTION", false, undefined);
+        logger.debug('[getEngagementsById] - Request response : %s ', jsonString);
+        res.end(jsonString);
+    }
+    return next();
+});
+
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagement/attachment/:attachmentId', authorization({
     resource: "engagement",
     action: "read"
 }), function (req, res, next) {
@@ -178,33 +282,7 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/EngagementItem/:itemI
     return next();
 });
 
-RestServer.post('/DVP/API/' + version + '/EngagementService/EngagementItem/:sessionId/:parentId', authorization({
-    resource: "engagement",
-    action: "write"
-}), function (req, res, next) {
-    try {
-
-        logger.info('[addItemToEngagement] - [HTTP]  - Request received -  Data - %s ', JSON.stringify(req.body));
-
-        if (!req.user ||!req.user.tenant || !req.user.company)
-            throw new Error("invalid tenant or company.");
-        var tenantId = req.user.tenant;
-        var companyId = req.user.company;
-
-        engagementHandler.addItemToEngagement(tenantId,companyId,req,res);
-
-    }
-    catch (ex) {
-
-        logger.error('[addItemToEngagement] - [HTTP]  - Exception occurred -  Data - %s ', JSON.stringify(req.body), ex);
-        var jsonString = messageFormatter.FormatMessage(ex, "EXCEPTION", false, undefined);
-        logger.debug('[addItemToEngagement] - Request response : %s ', jsonString);
-        res.end(jsonString);
-    }
-    return next();
-});
-
-RestServer.get('/DVP/API/' + version + '/EngagementService/Engagements/:Date/:Size/:Page', authorization({
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagements/:Date/:Size/:Page/details', authorization({
     resource: "engagement",
     action: "read"
 }), function (req, res, next) {
@@ -230,7 +308,7 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagements/:Date/:Si
     return next();
 });
 
-RestServer.get('/DVP/API/' + version + '/EngagementService/Engagements/:Date/:Size/:Page/sessionIds', authorization({
+RestServer.get('/DVP/API/' + version + '/EngagementService/Engagements/:Date/:Size/:Page', authorization({
     resource: "engagement",
     action: "read"
 }), function (req, res, next) {
@@ -243,7 +321,7 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagements/:Date/:Si
         var tenantId = req.user.tenant;
         var companyId = req.user.company;
 
-        engagementHandler.getAllEngagementsSessionIdsByDate(tenantId,companyId,req,res);
+        engagementHandler.getAllEngagementsIdsByDate(tenantId,companyId,req,res);
 
     }
     catch (ex) {
@@ -257,4 +335,4 @@ RestServer.get('/DVP/API/' + version + '/EngagementService/Engagements/:Date/:Si
 });
 
 
-//------------------------- End-CampaignHandler ------------------------- \\
+//------------------------- End-EngagementService ------------------------- \\

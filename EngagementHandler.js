@@ -57,10 +57,10 @@ var resetConnection = function () {
     }
 };
 
-var updateSiblings = function (sessionId,insertedId, res) {
+var updateSiblings = function (engagementId,insertedId, res) {
     var jsonString;
 
-    database.updateOne({_id: sessionId}, {
+    database.updateOne({_id: engagementId}, {
         $push: {
             siblings: {
                 $each: [ insertedId],
@@ -68,15 +68,13 @@ var updateSiblings = function (sessionId,insertedId, res) {
         }
     }, function (err, result) {
         if (!err) {
-            logger.info('updateSiblings - [%s]', sessionId);
+            logger.info('updateSiblings - [%s]', engagementId);
             jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", result.result.ok == 1, insertedId);
             res.end(jsonString);
         }
         else {
-            if (err.name == "MongoError") {
-                resetConnection();
-            }
-            logger.error('updateSiblings - [%s]', sessionId, err);
+
+            logger.error('updateSiblings - [%s]', engagementId, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
         }
@@ -85,21 +83,25 @@ var updateSiblings = function (sessionId,insertedId, res) {
 
 
 
-var updateLinks = function (sessionId, links, eng, res) {
+var updateLinks = function (engagementId, insertedId, res) {
 
     var jsonString;
 
-    database.updateOne({_id: sessionId}, {$set: {links: links}}, function (err, result) {
+    database.updateOne({_id: engagementId}, {
+        $push: {
+            links: {
+                $each: [ insertedId],
+            }
+        }
+    }, function (err, result) {
         if (!err) {
-            logger.info('updateLinks - [%s]', sessionId);
-            jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", result.result.ok == 1, eng.insertedId);
+            logger.info('updateLinks - [%s]', engagementId);
+            jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", result.result.ok == 1, insertedId);
             res.end(jsonString);
         }
         else {
-            if (err.name == "MongoError") {
-                resetConnection();
-            }
-            logger.error('updateLinks - [%s]', sessionId, err);
+
+            logger.error('updateLinks - [%s]', engagementId, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
         }
@@ -109,62 +111,46 @@ var updateLinks = function (sessionId, links, eng, res) {
 
 exports.saveEngagement = function (tenant, company, req, res) {
 
-    var items = [{tenant: tenant, company: company, sessionId: req.body.sessionId.toString(), req: req, res: res}];
+    res.setHeader('Content-Type', 'application/json');
+
+
+    var attachments = [{tenant: tenant, company: company, engagementId: req.body.engagementId.toString(), req: req, res: res}];
     var task = [];
     res.setHeader('Content-Type', 'application/json');
-    items.forEach(function (item) {
+    attachments.forEach(function (attachment) {
         task.push(function () {
             var now = moment(new Date());
             var date = now.format("DD-MM-YYYY-HH:mm:ss:SSS");
-            var jsonString;
-            database.findOne({_id: item.sessionId}, function (err, eng) {
+
+
+            var newEng = {
+                _id: attachment.engagementId,
+                engagementId: attachment.engagementId.toString(),
+                engagementType: attachment.req.body.engagementType,
+                tenant: attachment.tenant,
+                company: attachment.company,
+                data: attachment.req.body.data,
+                links: [],
+                siblings: [],
+                parent: null,
+                create: date
+            };
+
+            database.insertOne(newEng, function (err, result) {
+                var jsonString;
                 if (!err) {
-
-                    var newEng = {
-                        sessionId: item.sessionId.toString(),
-                        engagementType: item.req.body.engagementType,
-                        tenant: item.tenant,
-                        company: item.company,
-                        Data: item.req.body.Data,
-                        links: [],
-                        siblings: [],
-                        parent: null,
-                        create: date
-                    };
-                    if (!eng) {
-                        newEng._id= item.sessionId;
-                    }
-
-                    database.insertOne(newEng, function (err, result) {
-                        if (!err) {
-                            if (eng) {
-                                eng.links.push(result.insertedId.toString());
-                                updateLinks(item.sessionId, eng.links, result, res);
-                            }
-                            else {
-                                jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, result.insertedId);
-                                res.end(jsonString);
-                            }
-                        }
-                        else {
-                            if (err.name == "MongoError") {
-                                resetConnection();
-                            }
-                            logger.error('save Root Engagement - [%s]', item.sessionId, err);
-                            jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
-                            res.end(jsonString);
-                        }
-                    })
+                    logger.info('updateLinks - [%s]', newEng.engagementId);
+                    jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", result.result.ok == 1, result.insertedId.toString());
+                    res.end(jsonString);
                 }
                 else {
-                    if (err.name == "MongoError") {
-                        resetConnection();
-                    }
-                    logger.error('getEngagementBySessionId - [%s]', sessionId, err);
+                    logger.error('save Root Engagement - [%s]', newEng.engagementId, err);
                     jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
                     res.end(jsonString);
                 }
             });
+
+
         });
         task.push(function () {
 
@@ -175,59 +161,64 @@ exports.saveEngagement = function (tenant, company, req, res) {
 
 
             collection.insertOne({
-                _id:item.sessionId.toString(),
-                sessionId: item.sessionId.toString(),
+                _id:attachment.engagementId.toString(),
+                engagementId: attachment.engagementId.toString(),
                 create: now.format("DD-MM-YYYY-HH:mm:ss:SSS")
             }, function (err, result) {
                 if (err) {
-                    logger.error('saveSessionId - [%s]', item.sessionId, err);
+                    logger.error('saveId - [%s]', attachment.engagementId, err);
                 }
             });
-
-
-            /*collection.findOne({sessionId: item.sessionId.toString()}, function (err, result) {
-                    if (!err) {
-                        if (!result) {
-                            collection.insertOne({
-                                sessionId: item.sessionId.toString(),
-                                create: now.format("DD-MM-YYYY-HH:mm:ss:SSS")
-                            }, function (err, result) {
-                                if (err) {
-                                    logger.error('saveSessionId - [%s]', item.sessionId, err);
-                                }
-                            });
-                        }
-                    }
-                    else {
-                        if (err.name == "MongoError") {
-                            resetConnection();
-                        }
-                    }
-
-                }
-            );*/
         });
     });
     async.parallel(task, null);
+
 };
 
-exports.getEngagementBySessionId = function (tenant, company, req, res) {
+exports.updateEngagement = function (tenant, company, req, res) {
 
-    var sessionId = req.params.sessionId.toString();
+    res.setHeader('Content-Type', 'application/json');
+
+    var now = moment(new Date());
+    var date = now.format("DD-MM-YYYY-HH:mm:ss:SSS");
+    var newEng = {
+        engagementId: req.params.engagementId.toString(),
+        engagementType: req.body.engagementType,
+        tenant: tenant,
+        company: company,
+        data: req.body.data,
+        links: [],
+        siblings: [],
+        parent: null,
+        create: date
+    };
+
+    database.insertOne(newEng, function (err, result) {
+        if (!err) {
+            updateLinks(newEng.engagementId,result.insertedId.toString(), res);
+        }
+        else {
+            logger.error('save Root Engagement - [%s]', newEng.engagementId, err);
+            var jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+            res.end(jsonString);
+        }
+    });
+};
+
+exports.getEngagementById = function (tenant, company, req, res) {
+
+    var engagementId = req.params.engagementId.toString();
     res.setHeader('Content-Type', 'application/json');
     var jsonString;
 
-    database.findOne({_id: sessionId}, function (err, eng) {
+    database.findOne({_id: engagementId}, function (err, eng) {
         if (!err) {
-            logger.info('getEngagementBySessionId - [%s]', sessionId);
+            logger.info('getEngagementById - [%s]', engagementId);
             jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, eng);
             res.end(jsonString);
         }
         else {
-            if (err.name == "MongoError") {
-                resetConnection();
-            }
-            logger.error('getEngagementBySessionId - [%s]', sessionId, err);
+                     logger.error('getEngagementById - [%s]', engagementId, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
         }
@@ -235,9 +226,9 @@ exports.getEngagementBySessionId = function (tenant, company, req, res) {
 
 };
 
-exports.getEngagementsBySessionId = function (tenant, company, req, res) {
+exports.getEngagementsById = function (tenant, company, req, res) {
 
-    var sessionId = req.params.sessionId.toString();
+    var engagementId = req.params.engagementId.toString();
     res.setHeader('Content-Type', 'application/json');
     var jsonString;
 
@@ -245,7 +236,7 @@ exports.getEngagementsBySessionId = function (tenant, company, req, res) {
         size = parseInt(req.params.Size),
         skip = page > 0 ? ((page - 1) * size) : 0;
 
-    database.findOne({_id: sessionId}, function (err, eng) {
+    database.findOne({_id: engagementId}, function (err, eng) {
         if (!err) {
             if (eng) {
                 var ids = eng.links;
@@ -255,7 +246,7 @@ exports.getEngagementsBySessionId = function (tenant, company, req, res) {
 
                 database.find({_id: {$in: ids}}).skip(skip).limit(size).toArray(function (err, anc) {
                     if (!err) {
-                        logger.info('getEngagementBySessionId - [%s]', sessionId);
+                        logger.info('getEngagementById - [%s]', engagementId);
                         jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", true, anc);
                         res.end(jsonString);
                     }
@@ -276,7 +267,30 @@ exports.getEngagementsBySessionId = function (tenant, company, req, res) {
             if (err.name == "MongoError") {
                 resetConnection();
             }
-            logger.error('getEngagementBySessionId - [%s]', sessionId, err);
+            logger.error('getEngagementById - [%s]', engagementId, err);
+            jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+            res.end(jsonString);
+        }
+    });
+
+};
+
+exports.isExistingEngagement = function (tenant, company, req, res) {
+
+    var engagementId = req.params.engagementId.toString();
+    res.setHeader('Content-Type', 'application/json');
+    var jsonString;
+
+
+    database.findOne({_id: engagementId}, function (err, eng) {
+        if (!err) {
+            logger.info('getEngagementById - [%s]', engagementId);
+            jsonString = messageFormatter.FormatMessage(undefined, "EXCEPTION", eng!=undefined, undefined);
+            res.end(jsonString);
+        }
+        else {
+
+            logger.error('getEngagementById - [%s]', engagementId, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
         }
@@ -314,16 +328,14 @@ exports.getAllAttachments = function (tenant, company, req, res) {
                 });
             }
             else {
-                jsonString = messageFormatter.FormatMessage(new Error("No Data"), "EXCEPTION", false, undefined);
+                jsonString = messageFormatter.FormatMessage(new Error("No data"), "EXCEPTION", false, undefined);
                 res.end(jsonString);
             }
 
 
         }
         else {
-            if (err.name == "MongoError") {
-                resetConnection();
-            }
+
             logger.error('getAllAttachments - [%s]', engagementId, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
@@ -334,7 +346,7 @@ exports.getAllAttachments = function (tenant, company, req, res) {
 
 exports.getAttachment = function (tenant, company, req, res) {
 
-    var attachmentId = req.params.itemId;
+    var attachmentId = req.params.attachmentId;
 
     res.setHeader('Content-Type', 'application/json');
     var jsonString;
@@ -347,9 +359,7 @@ exports.getAttachment = function (tenant, company, req, res) {
                 res.end(jsonString);
             }
             else {
-                if (err.name == "MongoError") {
-                    resetConnection();
-                }
+
                 logger.error('getAttachment - [%s]', attachmentId, err);
                 jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
                 res.end(jsonString);
@@ -363,9 +373,114 @@ exports.getAttachment = function (tenant, company, req, res) {
     }
 };
 
-exports.addItemToEngagement = function (tenant, company, req, res) {
+exports.createEngagementAndAddAttachment = function (tenant, company, req, res) {
 
-    var sessionId = req.params.sessionId.toString();
+    var engagementId = req.params.engagementId.toString();
+
+    res.setHeader('Content-Type', 'application/json');
+    var jsonString;
+
+    var now = moment(new Date());
+    var date = now.format("DD-MM-YYYY-HH:mm:ss:SSS");
+
+    function saveItem() {
+        database.insertOne({
+            engagementId: engagementId,
+            attachmentType: req.body.attachmentType,
+            tenant: tenant,
+            company: company,
+            data: req.body.data,
+            create: date,
+            links: [],
+            siblings: [],
+            parent: engagementId
+        }, function (err, itm) {
+            if (!err) {
+                updateSiblings(engagementId, itm.insertedId.toString(), res);
+            }
+            else {
+
+                logger.error('saveEngagement - [%s]', engagementId, err);
+                jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+                res.end(jsonString);
+            }
+        })
+    }
+
+    var newEng = {
+        _id: engagementId,
+        engagementId: engagementId,
+        engagementType: req.body.engagementType,
+        tenant: tenant,
+        company: company,
+        data: req.body.data,
+        links: [],
+        siblings: [],
+        parent: null,
+        create: date
+    };
+
+    database.insertOne(newEng, function (err, result) {
+        if (!err) {
+            saveItem();
+        }
+        else {
+            logger.error('save Root Engagement - [%s]', newEng.engagementId, err);
+            var jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+            res.end(jsonString);
+        }
+    });
+
+    /*
+    database.findOne({_id: engagementId}, function (err, eng) {
+        if (err) {
+            logger.error('getEngagement - [%s]', engagementId, err);
+            jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+            res.end(jsonString);
+            if (err.name == "MongoError") {
+                resetConnection();
+            }
+            return;
+        }
+        if (eng) {
+            database.insertOne({
+                engagementId: engagementId,
+                attachmentType: req.body.attachmentType,
+                tenant: tenant,
+                company: company,
+                data: req.body.data,
+                create: date,
+                links: [],
+                siblings: [],
+                parent: parentId
+            }, function (err, itm) {
+                if (!err) {
+                    eng.siblings.push(itm.insertedId.toString());
+                    updateSiblings(engagementId, eng.siblings, itm.insertedId, res);
+                }
+                else {
+                    if (err.name == "MongoError") {
+                        resetConnection();
+                    }
+                    logger.error('saveEngagement - [%s]', engagementId, err);
+                    jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
+                    res.end(jsonString);
+                }
+            })
+        }
+        else {
+
+            jsonString = messageFormatter.FormatMessage(undefined, "Invalid  ID or Item ID", false, undefined);
+            res.end(jsonString);
+        }
+
+    });
+    */
+};
+
+exports.addAttachmentToEngagement = function (tenant, company, req, res) {
+
+    var engagementId = req.params.engagementId.toString();
     var parentId = req.params.parentId;
 
 
@@ -374,98 +489,27 @@ exports.addItemToEngagement = function (tenant, company, req, res) {
 
     var now = moment(new Date());
     var date = now.format("DD-MM-YYYY-HH:mm:ss:SSS");
-
-    database.findOne({_id: sessionId}, function (err, eng) {
-        if (err) {
-            logger.error('getEngagement - [%s]', sessionId, err);
-            jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
-            res.end(jsonString);
-            if (err.name == "MongoError") {
-                resetConnection();
-            }
-            return;
-        }
-        function saveItem() {
-            database.insertOne({
-                sessionId: sessionId,
-                itemType: req.body.ItemType,
-                tenant: tenant,
-                company: company,
-                Data: req.body.Data,
-                create: date,
-                links: [],
-                siblings: [],
-                parent: parentId
-            }, function (err, itm) {
-                if (!err) {
-                    updateSiblings(sessionId, itm.insertedId.toString(), res);
-                }
-                else {
-                    if (err.name == "MongoError") {
-                        resetConnection();
-                    }
-                    logger.error('saveEngagement - [%s]', sessionId, err);
-                    jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
-                    res.end(jsonString);
-                }
-            })
-        }
-        if (eng) {
-            saveItem();
+    database.insertOne({
+        engagementId: engagementId,
+        attachmentType: req.body.attachmentType,
+        tenant: tenant,
+        company: company,
+        data: req.body.data,
+        create: date,
+        links: [],
+        siblings: [],
+        parent: parentId
+    }, function (err, itm) {
+        if (!err) {
+            updateSiblings(engagementId, itm.insertedId.toString(), res);
         }
         else {
 
-            jsonString = messageFormatter.FormatMessage(undefined, "Invalid Session ID or Item ID", false, undefined);
-            res.end(jsonString);
-        }
-
-    });
-
-    /*
-    database.findOne({_id: sessionId}, function (err, eng) {
-        if (err) {
-            logger.error('getEngagement - [%s]', sessionId, err);
+            logger.error('saveEngagement - [%s]', engagementId, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
-            if (err.name == "MongoError") {
-                resetConnection();
-            }
-            return;
         }
-        if (eng) {
-            database.insertOne({
-                sessionId: sessionId,
-                itemType: req.body.ItemType,
-                tenant: tenant,
-                company: company,
-                Data: req.body.Data,
-                create: date,
-                links: [],
-                siblings: [],
-                parent: parentId
-            }, function (err, itm) {
-                if (!err) {
-                    eng.siblings.push(itm.insertedId.toString());
-                    updateSiblings(sessionId, eng.siblings, itm.insertedId, res);
-                }
-                else {
-                    if (err.name == "MongoError") {
-                        resetConnection();
-                    }
-                    logger.error('saveEngagement - [%s]', sessionId, err);
-                    jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
-                    res.end(jsonString);
-                }
-            })
-        }
-        else {
-
-            jsonString = messageFormatter.FormatMessage(undefined, "Invalid Session ID or Item ID", false, undefined);
-            res.end(jsonString);
-        }
-
-    });
-    */
+    })
 };
 
 exports.getAllEngagementsByDate = function (tenant, company, req, res) {
@@ -498,9 +542,7 @@ exports.getAllEngagementsByDate = function (tenant, company, req, res) {
 
         }
         else {
-            if (err.name == "MongoError") {
-                resetConnection();
-            }
+
             logger.error('getAllEngagementsByDate - [%s]', selectedDate, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
@@ -509,7 +551,7 @@ exports.getAllEngagementsByDate = function (tenant, company, req, res) {
 
 };
 
-exports.getAllEngagementsSessionIdsByDate = function (tenant, company, req, res) {
+exports.getAllEngagementsIdsByDate = function (tenant, company, req, res) {
 
     var selectedDate = req.params.Date;
     var page = parseInt(req.params.Page),
@@ -528,9 +570,7 @@ exports.getAllEngagementsSessionIdsByDate = function (tenant, company, req, res)
             res.end(jsonString);
         }
         else {
-            if (err.name == "MongoError") {
-                resetConnection();
-            }
+
             logger.error('getAllEngagementsByDate - [%s]', selectedDate, err);
             jsonString = messageFormatter.FormatMessage(err, "EXCEPTION", false, undefined);
             res.end(jsonString);
