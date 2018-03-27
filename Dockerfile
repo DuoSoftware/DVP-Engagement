@@ -7,7 +7,7 @@
 
 #EXPOSE 8834
 
-FROM node:argon
+FROM node:9.9.0
 ARG VERSION_TAG
 RUN git clone -b $VERSION_TAG https://github.com/DuoSoftware/DVP-Engagement.git /usr/local/src/engagementservice
 RUN cd /usr/local/src/engagementservice;
